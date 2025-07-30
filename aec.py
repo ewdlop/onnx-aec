@@ -185,7 +185,21 @@ class DECModelRealTime:
         self.frame_size = int(window_length * sampling_rate)
         self.window = np.sqrt(np.hamming(int(window_length * sampling_rate) + 1)[:-1]).astype(np.float32)
         print(f"Model initialized with frame_size: {self.frame_size}, window shape: {self.window.shape}")
-        self.model = onnxruntime.InferenceSession(model_path)
+        try:
+            import os
+            if not os.path.isfile(model_path):
+                print(f"[ERROR] 模型檔案不存在：{model_path}", flush=True)
+                sys.exit(1)
+            import onnxruntime as ort
+            print("Available providers:", ort.get_available_providers())
+            print(f"Loading ONNX model from {model_path}...")
+            session_options = ort.SessionOptions()
+            session_options.intra_op_num_threads = 1
+            session_options.inter_op_num_threads = 1
+            self.model = onnxruntime.InferenceSession(model_path, sess_options=session_options)
+            print(f"Loaded ONNX model from {model_path}")
+        except Exception as e:
+            print(f"Error loading ONNX model from {model_path}: {e}")
         self.h01 = np.zeros((1, 1, hidden_size), dtype=np.float32)
         self.h02 = np.zeros((1, 1, hidden_size), dtype=np.float32)
 
@@ -241,6 +255,8 @@ echo_canceller = DECModelRealTime(
     sampling_rate=SAMPLE_RATE,
 )
 
+print("Echo canceller initialized.")
+
 # WAVファイルへの書き込み設定
 output_filename_mic = "mic.wav"
 output_filename_ref = "ref.wav"
@@ -252,6 +268,8 @@ if output_mode == 'wav':
     wav_file_mic = sf.SoundFile(output_filename_mic, mode='w', samplerate=SAMPLE_RATE, channels=1, subtype='PCM_16')
     wav_file_ref = sf.SoundFile(output_filename_ref, mode='w', samplerate=SAMPLE_RATE, channels=1, subtype='PCM_16')
     wav_file_ec = sf.SoundFile(output_filename_ec, mode='w', samplerate=SAMPLE_RATE, channels=1, subtype='PCM_16')
+
+print(f"Outputting to WAV files: {output_filename_mic}, {output_filename_ref}, {output_filename_ec}")
 
 # 音声データを処理する関数
 def process_audio_callback(mic_data: np.ndarray, reference_data: np.ndarray):
